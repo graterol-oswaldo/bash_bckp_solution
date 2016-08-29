@@ -30,6 +30,7 @@ TMP_DIR_DST_BCKP="backups"
 TMP_FILE_DST_BCKP="bckp_directory_"
 FILE_NAME=`basename "$0"`
 HOST_IP=`ifconfig eth0| grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1'`
+TMP_ERROR_LOG=$(mktemp -d)
 
 ### Configuracion SSH/SCP ###
 REMOTE_USER="root"
@@ -39,8 +40,8 @@ REMOTE_DIR_DST="/servidores/192.168.56.1"
 ########## SCRIPT DE RESPALDO ##########
 
 spy=0
-cat /dev/null > /tmp/script_log.err
 rm -r  "/${TMP_DIR_DST_BCKP}" 2>/dev/null
+touch ${TMP_ERROR_LOG}/script_log.err
 
 function fc_msg {
 
@@ -68,11 +69,11 @@ function fc_valida {
 }
 
 function fc_error {
-	error=$(wc -c /tmp/script_log.err | awk '{print $1}')
+	error=$(wc -c ${TMP_ERROR_LOG}/script_log.err | awk '{print $1}')
 	if [[ $error > 0 ]] 
 	then
 		spy=1
-		cat /tmp/script_log.err
+		cat ${TMP_ERROR_LOG}/script_log.err
 		break;
 	fi
 }
@@ -89,31 +90,31 @@ if [ ! -d "/${TMP_DIR_DST_BCKP}" ]; then
 		fc_error
 fi
 
-tar -zcf /${TMP_DIR_DST_BCKP}/${TMP_FILE_DST_BCKP}${NOW}.tar.gz -P ${DIRS_SRC_BCKP} 2>/tmp/script_log.err
+tar -zcf /${TMP_DIR_DST_BCKP}/${TMP_FILE_DST_BCKP}${NOW}.tar.gz -P ${DIRS_SRC_BCKP} 2>${TMP_ERROR_LOG}/script_log.err
 fc_valida $?
 fc_msg 2
 fc_error
 
-scp -r /${TMP_DIR_DST_BCKP} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR_DST}/. 2>/tmp/script_log.err
+scp -r /${TMP_DIR_DST_BCKP} ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR_DST}/. 2>${TMP_ERROR_LOG}/script_log.err
 fc_valida $?
 fc_msg 3
 fc_error
 
 fc_msg 4
-CHKSUM=`sha1sum "/${TMP_DIR_DST_BCKP}/${TMP_FILE_DST_BCKP}${NOW}.tar.gz"` 2>/tmp/script_log.err
+CHKSUM=`sha1sum "/${TMP_DIR_DST_BCKP}/${TMP_FILE_DST_BCKP}${NOW}.tar.gz"` 2>${TMP_ERROR_LOG}/script_log.err
 fc_error
-FILE_SIZE=`stat -c%s "/${TMP_DIR_DST_BCKP}/${TMP_FILE_DST_BCKP}${NOW}.tar.gz"` 2>/tmp/script_log.err
+FILE_SIZE=`stat -c%s "/${TMP_DIR_DST_BCKP}/${TMP_FILE_DST_BCKP}${NOW}.tar.gz"` 2>${TMP_ERROR_LOG}/script_log.err
 fc_error
 NOWLOG=`date +%F' '%T`
 
-LOG="$NOWLOG $HOST_IP $USERNAME $CHKSUM $FILE_SIZE $FILE_NAME" 2>/tmp/script_log.err
+LOG="$NOWLOG $HOST_IP $USERNAME $CHKSUM $FILE_SIZE $FILE_NAME" 2>${TMP_ERROR_LOG}/script_log.err
 fc_error
 
-ssh $REMOTE_USER@$REMOTE_HOST echo $LOG  \| awk "'{print $1}'" \>\> ${REMOTE_DIR_DST}/${TMP_DIR_DST_BCKP}/bckp.log 2>/tmp/script_log.err
+ssh $REMOTE_USER@$REMOTE_HOST echo $LOG  \| awk "'{print $1}'" \>\> ${REMOTE_DIR_DST}/${TMP_DIR_DST_BCKP}/bckp.log 2>${TMP_ERROR_LOG}/script_log.err
 fc_valida $?
 fc_msg 5
 
-rm -r  $TMP_DIR_DST_BCKP 2>/tmp/script_log.err
+rm -r  $TMP_DIR_DST_BCKP 2>${TMP_ERROR_LOG}/script_log.err
 break
 done;
 
